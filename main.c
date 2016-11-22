@@ -23,9 +23,10 @@ llist_t *merge_list(llist_t *a, llist_t *b)
     llist_t *_list = list_new();
     node_t *current = NULL;
     while (a->size && b->size) {
+        int tmp= strcmp(a->head->data,b->head->data);
         llist_t *small = (llist_t *)
-                         ((intptr_t) a * (a->head->data <= b->head->data) +
-                          (intptr_t) b * (a->head->data > b->head->data));
+                         ((intptr_t) a * (tmp <= 0) +
+                          (intptr_t) b * (tmp > 0));
         if (current) {
             current->next = small->head;
             current = current->next;
@@ -33,8 +34,8 @@ llist_t *merge_list(llist_t *a, llist_t *b)
             _list->head = small->head;
             current = _list->head;
         }
-        small->head = small->head->next;
-        --small->size;
+	small->head = small->head->next;
+	--small->size;
         ++_list->size;
         current->next = NULL;
     }
@@ -48,19 +49,6 @@ llist_t *merge_list(llist_t *a, llist_t *b)
     return _list;
 }
 
-llist_t *merge_sort(llist_t *list)
-{
-    if (list->size < 2)
-        return list;
-    int mid = list->size / 2;
-    llist_t *left = list;
-    llist_t *right = list_new();
-    right->head = list_nth(list, mid);
-    right->size = list->size - mid;
-    list_nth(list, mid - 1)->next = NULL;
-    left->size = mid;
-    return merge_list(merge_sort(left), merge_sort(right));
-}
 
 void merge(void *data)
 {
@@ -85,16 +73,27 @@ void merge(void *data)
         _task->func = NULL;
         tqueue_push(pool->queue, _task);
         list_print(_list);
+
+	FILE *fp;
+	fp=fopen("output.txt","w");
+	while(_list->head) {
+	    fprintf(fp,"%s\n",_list->head->data);
+	    _list->head=_list->head->next;
+	}
+	fclose(fp);
     }
+}
+
+void run(void *data)
+{
+     cut_func(data);
 }
 
 void cut_func(void *data)
 {
     llist_t *list = (llist_t *) data;
     pthread_mutex_lock(&(data_context.mutex));
-    int cut_count = data_context.cut_thread_count;
-    if (list->size > 1 && cut_count < max_cut) {
-        ++data_context.cut_thread_count;
+    if (list->size > 1) {
         pthread_mutex_unlock(&(data_context.mutex));
 
         /* cut list */
@@ -118,10 +117,9 @@ void cut_func(void *data)
         tqueue_push(pool->queue, _task);
     } else {
         pthread_mutex_unlock(&(data_context.mutex));
-        merge(merge_sort(list));
+        merge(list);
     }
 }
-
 static void *task_run(void *data)
 {
     (void) data;
@@ -150,19 +148,18 @@ int main(int argc, char const *argv[])
     data_count = atoi(argv[2]);
     max_cut = thread_count * (thread_count <= data_count) +
               data_count * (thread_count > data_count) - 1;
-
-    /* Read data */
     the_list = list_new();
 
-    /* FIXME: remove all all occurrences of printf and scanf
-     * in favor of automated test flow.
-     */
-    printf("input unsorted data line-by-line\n");
-    for (int i = 0; i < data_count; ++i) {
-        long int data;
-        scanf("%ld", &data);
-        list_add(the_list, data);
+    /* Read Data from File*/
+    FILE *fp=fopen("words.txt","r");
+    if(fp) {
+        char data[16];
+	while((fscanf(fp,"%s\n",data))!=EOF) {
+	    list_add(the_list, data);
+	}
     }
+    fclose(fp);
+
 
     /* initialize tasks inside thread pool */
     pthread_mutex_init(&(data_context.mutex), NULL);
@@ -173,7 +170,7 @@ int main(int argc, char const *argv[])
 
     /* launch the first task */
     task_t *_task = (task_t *) malloc(sizeof(task_t));
-    _task->func = cut_func;
+    _task->func = run;
     _task->arg = the_list;
     tqueue_push(pool->queue, _task);
 
