@@ -1,13 +1,13 @@
 #include <stdlib.h>
 #include <stdio.h>
-
+#include <string.h>
 #include "list.h"
 
 static node_t *node_new(val_t val, node_t *next)
 {
     /* allocate node */
     node_t *node = malloc(sizeof(node_t));
-    node->data = val;
+    strcpy(node->data,val);
     node->next = next;
     return node;
 }
@@ -25,13 +25,13 @@ llist_t *list_new()
  * list_add inserts a new node with the given value val in the list
  * (if the value was absent) or does nothing (if the value is already present).
  */
-int list_add(llist_t *list, val_t val)
+void list_add(llist_t *list, val_t val)
 {
     node_t *e = node_new(val, NULL);
     e->next = list->head;
     list->head = e;
     list->size++;
-    return 0;
+    //return 0;
 }
 
 /*
@@ -54,7 +54,7 @@ void list_print(llist_t *list)
     /* FIXME: we have to validate the sorted results in advance. */
     printf("\nsorted results:\n");
     while (cur) {
-        printf("[%ld] ", cur->data);
+        printf("[%s] ", cur->data);
         cur = cur->next;
     }
     printf("\n");
